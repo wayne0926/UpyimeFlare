@@ -43,7 +43,10 @@ export default function ConfigPage() {
       try {
         const res = await fetch('/api/config')
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
-        const data = await res.json()
+        const data: {
+          pageConfig: PageConfig
+          workerConfig: WorkerConfig
+        } = await res.json()
         setConfig(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
