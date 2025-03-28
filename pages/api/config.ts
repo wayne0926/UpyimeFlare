@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { Octokit } from 'octokit'
+import { Octokit } from '@octokit/rest'
 import { pageConfig, workerConfig } from '../../uptime.config'
 
 export default async function handler(
