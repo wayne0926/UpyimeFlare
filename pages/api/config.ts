@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+export const runtime = 'edge'
 import { Octokit } from '@octokit/rest'
 import { pageConfig, workerConfig } from '../../uptime.config'
 
