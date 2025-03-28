@@ -10,12 +10,25 @@ export default async function handler(
   // GET - Return current config
   if (req.method === 'GET') {
     try {
+      if (!pageConfig || !workerConfig) {
+        throw new Error('Config not loaded')
+      }
       return res.status(200).json({ 
-        pageConfig,
-        workerConfig 
+        pageConfig: {
+          ...pageConfig,
+          title: pageConfig.title || 'UptimeFlare Status'
+        },
+        workerConfig: {
+          ...workerConfig,
+          monitors: workerConfig.monitors || []
+        }
       })
     } catch (err) {
-      return res.status(500).json({ error: 'Failed to load config' })
+      console.error('Config load error:', err)
+      return res.status(500).json({ 
+        error: 'Failed to load config',
+        details: err instanceof Error ? err.message : String(err)
+      })
     }
   }
 
