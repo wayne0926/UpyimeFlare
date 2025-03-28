@@ -1,15 +1,31 @@
-import { NextResponse } from 'next/server'
-import { Octokit } from 'octokit' 
+import { Octokit } from 'octokit'
 import { pageConfig, workerConfig } from '../../uptime.config'
 
-export const runtime = 'edge'
+export default {
+  async fetch(request: Request) {
+    const url = new URL(request.url)
+    
+    if (url.pathname !== '/api/config') {
+      return new Response('Not found', { status: 404 })
+    }
 
-export async function GET() {
+    switch (request.method) {
+      case 'GET':
+        return handleGetRequest()
+      case 'POST':
+        return handlePostRequest(request)
+      default:
+        return new Response('Method not allowed', { status: 405 })
+    }
+  }
+}
+
+async function handleGetRequest() {
   try {
     if (!pageConfig || !workerConfig) {
       throw new Error('Config not loaded')
     }
-    return NextResponse.json({ 
+    return new Response(JSON.stringify({ 
       pageConfig: {
         ...pageConfig,
         title: pageConfig.title || 'UptimeFlare Status'
@@ -18,13 +34,18 @@ export async function GET() {
         ...workerConfig,
         monitors: workerConfig.monitors || []
       }
+    }), {
+      headers: { 'Content-Type': 'application/json' }
     })
   } catch (err) {
     console.error('Config load error:', err)
-    return NextResponse.json({ 
+    return new Response(JSON.stringify({ 
       error: 'Failed to load config',
       details: err instanceof Error ? err.message : String(err)
-    }, { status: 500 })
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }
 
@@ -36,14 +57,14 @@ interface ConfigRequestBody {
   workerConfig: any
 }
 
-export async function POST(request: Request) {
+async function handlePostRequest(request: Request) {
   const body = await request.json() as Partial<ConfigRequestBody>
   const { githubToken, githubOwner, githubRepo, ...newConfig } = body
   
   if (!githubToken || !githubOwner || !githubRepo) {
-    return NextResponse.json({ 
+    return new Response(JSON.stringify({ 
       error: 'GitHub credentials required' 
-    }, { status: 400 })
+    }), { status: 400 })
   }
 
   try {
@@ -70,11 +91,16 @@ export async function POST(request: Request) {
       sha: (currentFile as any).sha
     })
 
-    return NextResponse.json({ success: true })
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
   } catch (err) {
     console.error('GitHub API error:', err)
-    return NextResponse.json({ 
+    return new Response(JSON.stringify({ 
       error: 'Failed to update config on GitHub' 
-    }, { status: 500 })
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }
