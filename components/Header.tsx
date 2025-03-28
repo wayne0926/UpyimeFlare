@@ -8,7 +8,7 @@ export default function Header() {
       <a
         key={link.label}
         href={link.link}
-        target="_blank"
+        target={link.link.startsWith('/') ? undefined : '_blank'}
         className={classes.link}
         data-active={link.highlight}
       >
@@ -16,6 +16,15 @@ export default function Header() {
       </a>
     )
   }
+
+  const links = [
+    ...pageConfig.links,
+    {
+      label: 'Config',
+      link: '/config',
+      highlight: true
+    }
+  ]
 
   return (
     <header className={classes.header}>
@@ -38,11 +47,11 @@ export default function Header() {
         </div>
 
         <Group gap={5} visibleFrom="sm">
-          {pageConfig.links.map(linkToElement)}
+          {links.map(linkToElement)}
         </Group>
 
         <Group gap={5} hiddenFrom="sm">
-          {pageConfig.links.filter((link) => (link as any).highlight).map(linkToElement)}
+          {links.filter((link) => (link as any).highlight).map(linkToElement)}
         </Group>
       </Container>
     </header>

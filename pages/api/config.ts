@@ -1,10 +1,13 @@
-import { Octokit } from 'octokit'
-import { pageConfig, workerConfig } from '../../uptime.config'
+/// <reference types="@cloudflare/workers-types" />
+
+interface Env {
+  UPTIMEFLARE_STATE: KVNamespace
+}
 
 export const runtime = 'edge'
 
 const configHandler = {
-  async fetch(request: Request) {
+  async fetch(request: Request, env: { UPTIMEFLARE_STATE: KVNamespace }) {
     const url = new URL(request.url)
     
     if (url.pathname !== '/api/config') {
@@ -13,36 +16,33 @@ const configHandler = {
 
     switch (request.method) {
       case 'GET':
-        return handleGetRequest()
+        return handleGetRequest(env)
       case 'POST':
-        return handlePostRequest(request)
+        return handlePostRequest(request, env)
       default:
         return new Response('Method not allowed', { status: 405 })
     }
   }
 }
 
-async function handleGetRequest() {
+async function handleGetRequest(env: { UPTIMEFLARE_STATE: KVNamespace }) {
   try {
-    if (!pageConfig || !workerConfig) {
-      throw new Error('Config not loaded')
+    const config = await env.UPTIMEFLARE_STATE.get('config', { type: 'json' })
+    if (!config) {
+      return new Response(JSON.stringify({ 
+        error: 'Config not found in KV'
+      }), { 
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
-    return new Response(JSON.stringify({ 
-      pageConfig: {
-        ...pageConfig,
-        title: pageConfig.title || 'UptimeFlare Status'
-      },
-      workerConfig: {
-        ...workerConfig,
-        monitors: workerConfig.monitors || []
-      }
-    }), {
+    return new Response(JSON.stringify(config), {
       headers: { 'Content-Type': 'application/json' }
     })
   } catch (err) {
-    console.error('Config load error:', err)
+    console.error('KV config load error:', err)
     return new Response(JSON.stringify({ 
-      error: 'Failed to load config',
+      error: 'Failed to load config from KV',
       details: err instanceof Error ? err.message : String(err)
     }), { 
       status: 500,
@@ -52,54 +52,59 @@ async function handleGetRequest() {
 }
 
 interface ConfigRequestBody {
-  githubToken: string
-  githubOwner: string  
-  githubRepo: string
   pageConfig: any
   workerConfig: any
+  githubToken?: string
+  githubOwner?: string  
+  githubRepo?: string
 }
 
-async function handlePostRequest(request: Request) {
-  const body = await request.json() as Partial<ConfigRequestBody>
+async function handlePostRequest(request: Request, env: { UPTIMEFLARE_STATE: KVNamespace }) {
+  const body = await request.json() as ConfigRequestBody
   const { githubToken, githubOwner, githubRepo, ...newConfig } = body
   
-  if (!githubToken || !githubOwner || !githubRepo) {
-    return new Response(JSON.stringify({ 
-      error: 'GitHub credentials required' 
-    }), { status: 400 })
-  }
-
   try {
-    const octokit = new Octokit({ auth: githubToken! })
+    // Always save to KV
+    await env.UPTIMEFLARE_STATE.put('config', JSON.stringify(newConfig))
 
-    // 1. Get current file SHA
-    const { data: currentFile } = await octokit.rest.repos.getContent({
-      owner: githubOwner,
-      repo: githubRepo,
-      path: 'uptime.config.ts',
-    })
+    // Optionally sync to GitHub if credentials provided
+    if (githubToken && githubOwner && githubRepo) {
+      const Octokit = (await import('octokit')).Octokit
+      const octokit = new Octokit({ auth: githubToken })
 
-    // 2. Update file  
-    await octokit.rest.repos.createOrUpdateFileContents({
-      owner: githubOwner,
-      repo: githubRepo,
-      path: 'uptime.config.ts',
-      message: 'Update uptime configuration',
-      content: Buffer.from(
-        `const pageConfig = ${JSON.stringify(newConfig.pageConfig, null, 2)}\n\n` +
-        `const workerConfig = ${JSON.stringify(newConfig.workerConfig, null, 2)}\n\n` +
-        `export { pageConfig, workerConfig }`
-      ).toString('base64'),
-      sha: (currentFile as any).sha
-    })
+      try {
+        const { data: currentFile } = await octokit.rest.repos.getContent({
+          owner: githubOwner,
+          repo: githubRepo,
+          path: 'uptime.config.ts',
+        })
+
+        await octokit.rest.repos.createOrUpdateFileContents({
+          owner: githubOwner,
+          repo: githubRepo,
+          path: 'uptime.config.ts',
+          message: 'Update uptime configuration',
+          content: Buffer.from(
+            `const pageConfig = ${JSON.stringify(newConfig.pageConfig, null, 2)}\n\n` +
+            `const workerConfig = ${JSON.stringify(newConfig.workerConfig, null, 2)}\n\n` +
+            `export { pageConfig, workerConfig }`
+          ).toString('base64'),
+          sha: (currentFile as any).sha
+        })
+      } catch (err) {
+        console.error('GitHub sync failed:', err)
+        // Continue even if GitHub sync fails since KV update succeeded
+      }
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { 'Content-Type': 'application/json' }
     })
   } catch (err) {
-    console.error('GitHub API error:', err)
+    console.error('KV config update error:', err)
     return new Response(JSON.stringify({ 
-      error: 'Failed to update config on GitHub' 
+      error: 'Failed to update config in KV',
+      details: err instanceof Error ? err.message : String(err)
     }), { 
       status: 500,
       headers: { 'Content-Type': 'application/json' }
