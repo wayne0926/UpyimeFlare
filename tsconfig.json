@@ -16,7 +16,7 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "types": ["@cloudflare/workers-types", "@mantine/core", "@mantine/hooks", "@mantine/notifications"]
+    "types": ["@cloudflare/workers-types"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "worker/**/*.ts"]

@@ -1,7 +1,14 @@
-import { workerConfig } from '../../uptime.config'
+/// <reference types="@cloudflare/workers-types" />
+import { workerConfig, pageConfig } from '../../uptime.config'
 import { formatStatusChangeNotification, getWorkerLocation, notifyWithApprise } from './util'
 import { MonitorState } from '../../uptime.types'
 import { getStatus } from './monitor'
+
+declare global {
+  interface Response {
+    json<T>(): Promise<T>
+  }
+}
 
 export interface Env {
   UPTIMEFLARE_STATE: KVNamespace
@@ -68,6 +75,15 @@ export default {
       } else {
         console.log(`Apprise API server or recipient URL not set, skipping apprise notification for ${monitor.name}`)
       }
+    }
+
+    // Initialize config if missing
+    if (!await env.UPTIMEFLARE_STATE.get('config')) {
+      await env.UPTIMEFLARE_STATE.put('config', JSON.stringify({
+        version: 1,
+        ...workerConfig,
+        ...pageConfig
+      }))
     }
 
     // Read state, set init state if it doesn't exist

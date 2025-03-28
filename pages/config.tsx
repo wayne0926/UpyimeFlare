@@ -1,24 +1,5 @@
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
-import { 
-  Container,
-  Title,
-  Text,
-  Paper,
-  Stack,
-  Group,
-  TextInput,
-  PasswordInput,
-  Button,
-  Table,
-  Modal,
-  LoadingOverlay,
-  Divider,
-  Notification
-} from '@mantine/core'
-import { useForm } from '@mantine/form'
-import { notifications } from '@mantine/notifications'
-import Header from '@/components/Header'
 import type { MonitorTarget } from '../uptime.types'
 
 interface PageConfig {
@@ -60,19 +41,6 @@ interface WorkerConfig {
 }
 
 export default function ConfigPage() {
-  const [opened, setOpened] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [editingMonitor, setEditingMonitor] = useState<MonitorTarget | null>(null)
-
-  const form = useForm({
-    initialValues: {
-      githubToken: '',
-      githubOwner: '',
-      githubRepo: '',
-      pageTitle: ''
-    }
-  })
-
   const [config, setConfig] = useState<{
     pageConfig: Partial<PageConfig>
     workerConfig: Partial<WorkerConfig>
@@ -88,22 +56,24 @@ export default function ConfigPage() {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [githubConfig, setGitHubConfig] = useState({
+    githubToken: '',
+    githubOwner: '',
+    githubRepo: ''
+  })
 
   useEffect(() => {
     const fetchConfig = async () => {
       try {
         const res = await fetch('/api/config')
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
-        const data = await res.json()
+        const data: {
+          pageConfig: PageConfig
+          workerConfig: WorkerConfig
+        } = await res.json()
         setConfig({
           pageConfig: data.pageConfig,
           workerConfig: data.workerConfig
-        })
-        form.setValues({
-          githubToken: data.githubToken || '',
-          githubOwner: data.githubOwner || '',
-          githubRepo: data.githubRepo || '',
-          pageTitle: data.pageConfig?.title || ''
         })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
@@ -116,88 +86,113 @@ export default function ConfigPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          githubToken: form.values.githubToken,
-          githubOwner: form.values.githubOwner,
-          githubRepo: form.values.githubRepo,
-          pageConfig: { ...config.pageConfig, title: form.values.pageTitle },
+          githubToken: githubConfig.githubToken,
+          githubOwner: githubConfig.githubOwner, 
+          githubRepo: githubConfig.githubRepo,
+          pageConfig: config.pageConfig,
           workerConfig: config.workerConfig
         })
       })
       if (!res.ok) throw new Error('Failed to update config')
-      notifications.show({
-        title: 'Success',
-        message: 'Configuration updated successfully',
-        color: 'green'
-      })
+      alert('Configuration updated successfully!')
     } catch (err) {
-      notifications.show({
-        title: 'Error',
-        message: err instanceof Error ? err.message : 'Failed to update config',
-        color: 'red'
-      })
-    } finally {
-      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Failed to update config')
     }
   }
 
-  if (isLoading) return <LoadingOverlay visible />
+  if (isLoading) return <div>Loading...</div>
+  if (error) return <div>Error: {error}</div>
 
   return (
     <>
       <Head>
         <title>Configuration - UptimeFlare</title>
       </Head>
-      
-      <Header />
-
-      <Container size="lg" py="xl">
-        <Title order={1} mb="xl">Configuration</Title>
-
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-6">Configuration</h1>
+        
         <form onSubmit={handleSubmit}>
-          <Stack spacing="xl">
-            {/* GitHub Settings */}
-            <Paper p="xl" shadow="sm">
-              <Title order={2} mb="md">GitHub Settings</Title>
-              <Stack spacing="md">
-                <PasswordInput
-                  label="GitHub Token"
+          {/* GitHub Config Section */}
+          <div className="mb-8 p-6 bg-white rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">GitHub Settings</h2>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block mb-2">GitHub Token</label>
+                <input
+                  type="password"
+                  className="w-full p-2 border rounded"
+                  aria-label="GitHub token input"
                   placeholder="ghp_..."
-                  {...form.getInputProps('githubToken')}
+                  value={githubConfig.githubToken}
+                  onChange={(e) => setGitHubConfig({
+                    ...githubConfig,
+                    githubToken: e.target.value
+                  })}
                 />
-                <Group grow>
-                  <TextInput
-                    label="Owner"
-                    placeholder="your-username"
-                    {...form.getInputProps('githubOwner')}
-                  />
-                  <TextInput
-                    label="Repository"
-                    placeholder="your-repo"
-                    {...form.getInputProps('githubRepo')}
-                  />
-                </Group>
-              </Stack>
-            </Paper>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block mb-2">Owner</label>
+                <input
+                  type="text"
+                  className="w-full p-2 border rounded"
+                  aria-label="GitHub owner input"
+                  placeholder="your-username"
+                  value={githubConfig.githubOwner}
+                  onChange={(e) => setGitHubConfig({
+                    ...githubConfig,
+                    githubOwner: e.target.value
+                  })}
+                />
+                </div>
+                <div>
+                  <label className="block mb-2">Repository</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border rounded"
+                  aria-label="GitHub repo input"
+                  placeholder="your-repo"
+                  value={githubConfig.githubRepo}
+                  onChange={(e) => setGitHubConfig({
+                    ...githubConfig,
+                    githubRepo: e.target.value
+                  })}
+                />
+                </div>
+              </div>
+            </div>
+          </div>
 
-            {/* Page Settings */}
-            <Paper p="xl" shadow="sm">
-              <Title order={2} mb="md">Page Settings</Title>
-              <TextInput
-                label="Page Title"
-                {...form.getInputProps('pageTitle')}
-              />
-            </Paper>
+          {/* Basic Config Section */}
+          <div className="mb-8 p-6 bg-white rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">Page Settings</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-2">Page Title</label>
+                <input
+                  type="text"
+                  className="w-full p-2 border rounded"
+                  aria-label="Page title input"
+                  value={config.pageConfig.title || ''}
+                  onChange={(e) => setConfig({
+                    ...config,
+                    pageConfig: { ...config.pageConfig, title: e.target.value }
+                  })}
+                />
+              </div>
+            </div>
+          </div>
 
-            {/* Monitors */}
-            <Paper p="xl" shadow="sm">
-              <Title order={2} mb="md">Monitors</Title>
-              <Table striped highlightOnHover>
+          {/* Monitors Section */}
+          <div className="mb-8 p-6 bg-white rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">Monitors</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
                 <thead>
                   <tr>
                     <th>ID</th>
@@ -210,69 +205,54 @@ export default function ConfigPage() {
                 <tbody>
                   {config.workerConfig.monitors?.map((monitor) => (
                     <tr key={monitor.id}>
-                      <td>{monitor.id}</td>
-                      <td>{monitor.name}</td>
-                      <td>{monitor.method}</td>
-                      <td>
-                        <Text size="sm" color="dimmed">{monitor.target}</Text>
+                      <td className="p-2 border">{monitor.id}</td>
+                      <td className="p-2 border">{monitor.name}</td>
+                      <td className="p-2 border">{monitor.method}</td>
+                      <td className="p-2 border">
+                        <code className="text-sm">{monitor.target}</code>
                       </td>
-                      <td>
-                        <Group spacing="xs">
-                          <Button
-                            size="xs"
-                            onClick={() => {
-                              setEditingMonitor(monitor)
-                              setOpened(true)
-                            }}
+                      <td className="p-2 border">
+                        <div className="flex space-x-2">
+                          <button
+                            type="button"
+                            className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                            onClick={() => {/* Edit logic */}}
                           >
                             Edit
-                          </Button>
-                          <Button
-                            size="xs"
-                            color="red"
-                            onClick={() => {
-                              // Delete logic
-                            }}
+                          </button>
+                          <button
+                            type="button"
+                            className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                            onClick={() => {/* Delete logic */}}
                           >
                             Delete
-                          </Button>
-                        </Group>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </Table>
-            </Paper>
+              </table>
+            </div>
+          </div>
 
-            <Group position="apart">
-              <Button
-                color="green"
-                onClick={() => {
-                  setEditingMonitor(null)
-                  setOpened(true)
-                }}
-              >
-                Add Monitor
-              </Button>
-              <Button
-                type="submit"
-                loading={loading}
-              >
-                Save Configuration
-              </Button>
-            </Group>
-          </Stack>
+          <div className="flex justify-between">
+            <button
+              type="button"
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+              onClick={() => {/* Add new monitor */}}
+            >
+              Add Monitor
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Save Configuration
+            </button>
+          </div>
         </form>
-      </Container>
-
-      {/* Monitor Edit Modal */}
-      <Modal
-        opened={opened}
-        onClose={() => setOpened(false)}
-        title={editingMonitor ? 'Edit Monitor' : 'Add Monitor'}
-      >
-        {/* Monitor form would go here */}
-      </Modal>
+      </div>
     </>
   )
 }
