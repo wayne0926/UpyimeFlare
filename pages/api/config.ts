@@ -1,7 +1,9 @@
 import { Octokit } from 'octokit'
 import { pageConfig, workerConfig } from '../../uptime.config'
 
-export default {
+export const runtime = 'edge'
+
+const configHandler = {
   async fetch(request: Request) {
     const url = new URL(request.url)
     
@@ -104,3 +106,5 @@ async function handlePostRequest(request: Request) {
     })
   }
 }
+
+export default configHandler
