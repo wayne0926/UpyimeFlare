@@ -107,4 +107,4 @@ async function handlePostRequest(request: Request) {
   }
 }
 
-export default configHandler
+export default configHandler.fetch
